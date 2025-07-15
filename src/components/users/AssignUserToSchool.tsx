@@ -120,7 +120,15 @@ export const AssignUserToSchool: React.FC = () => {
 
     setAssigning(true);
     try {
-      await usersService.assignUsersToSchool(Array.from(selectedUsers), selectedSchool.id);
+      // Build the correct array of user assignment objects
+      const userObjects = Array.from(selectedUsers).map(userId => ({
+        userid: parseInt(userId, 10),
+        companyid: parseInt(selectedSchool.id, 10),
+        departmentid: 0,
+        managertype: 0,
+        educator: 0,
+      }));
+      await usersService.assignUsersToSchool(userObjects);
       toast.success(`${selectedUsers.size} users assigned to ${selectedSchool.name}`);
       setSelectedUsers(new Set());
       setSelectedSchool(null);

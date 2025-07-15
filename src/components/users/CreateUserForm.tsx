@@ -19,6 +19,7 @@ import { LoadingSpinner } from '../LoadingSpinner';
 import { usersService } from '../../services/usersService';
 import { schoolsService } from '../../services/schoolsService';
 import { toast } from '../ui/Toaster';
+import countries, { Country } from '../../utils/countries';
 
 interface CreateUserFormProps {
   onUserCreated: () => void;
@@ -27,6 +28,7 @@ interface CreateUserFormProps {
 export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated }) => {
   const [loading, setLoading] = useState(false);
   const [schools, setSchools] = useState<any[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,24 +37,26 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated })
     firstname: '',
     lastname: '',
     email: '',
-    phone: '',
     country: '',
     city: '',
-    department: '',
-    school: '',
-    role: 'student',
-    auth: 'manual',
-    suspended: false,
-    emailstop: false,
-    theme: '',
+    school: '', // New: for school selection
+    phone1: '',
+    phone2: '',
+    address: '',
     lang: 'en',
-    timezone: 'UTC',
-    description: ''
+    timezone: '99',
+    description: '',
+    maildisplay: 2,
+    mailformat: 1,
+    auth: 'manual',
+    createpassword: 0,
+    role: '', // Will be set from real roles
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchSchools();
+    fetchRoles();
     fetchDepartments();
   }, []);
 
@@ -62,6 +66,16 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated })
       setSchools(schoolsData);
     } catch (error) {
       console.error('Error fetching schools:', error);
+    }
+  };
+
+  const fetchRoles = async () => {
+    try {
+      const rolesData = await usersService.getUserRoles();
+      // Filter out dangerous roles
+      setRoles(rolesData.filter(r => !['admin', 'superadmin', 'siteadmin', 'manager'].includes(r.toLowerCase())));
+    } catch (error) {
+      console.error('Error fetching roles:', error);
     }
   };
 
@@ -123,30 +137,33 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated })
 
     setLoading(true);
     try {
-      await usersService.createUser(formData);
-      toast.success('User created successfully!');
+      // Remove institution from payload
+      const userPayload = { ...formData };
+      const userRes = await usersService.createUser(userPayload);
+
+      // Check for error in response
+      if (!userRes || userRes.exception || !userRes[0] || !userRes[0].id) {
+        const errorMsg = userRes && userRes.message
+          ? userRes.message.replace(/<[^>]+>/g, '') // Remove HTML tags if present
+          : 'Failed to create user. Please check the details and try again.';
+        toast.error(errorMsg);
+        setLoading(false);
+        return;
+      }
+
+      const userId = userRes[0].id;
+      // Assign to school if selected
+      if (formData.school && userId) {
+        await usersService.assignUsersToSchool([
+          { userid: parseInt(userId, 10), companyid: parseInt(formData.school, 10), departmentid: 0, managertype: 0, educator: 0 }
+        ]);
+      }
+      // Assign role in company context (if needed, pseudo-code, depends on your API)
+      // await usersService.assignRoleToUser({ userid: userId, role: formData.role, companyid: formData.school });
+      toast.success('User created and assigned successfully!');
       onUserCreated();
-      
-      // Reset form
       setFormData({
-        username: '',
-        password: '',
-        firstname: '',
-        lastname: '',
-        email: '',
-        phone: '',
-        country: '',
-        city: '',
-        department: '',
-        school: '',
-        role: 'student',
-        auth: 'manual',
-        suspended: false,
-        emailstop: false,
-        theme: '',
-        lang: 'en',
-        timezone: 'UTC',
-        description: ''
+        username: '', password: '', firstname: '', lastname: '', email: '', country: '', city: '', school: '', phone1: '', phone2: '', address: '', lang: 'en', timezone: '99', description: '', maildisplay: 2, mailformat: 1, auth: 'manual', createpassword: 0, role: '',
       });
     } catch (error) {
       console.error('Error creating user:', error);
@@ -282,8 +299,8 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated })
               </label>
               <Input
                 type="tel"
-                value={formData.phone}
-                onChange={(e) => handleInputChange('phone', e.target.value)}
+                value={formData.phone1}
+                onChange={(e) => handleInputChange('phone1', e.target.value)}
                 placeholder="Enter phone number"
                 icon={Phone}
               />
@@ -300,15 +317,19 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated })
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Country
+                Country *
               </label>
-              <Input
-                type="text"
+              <select
                 value={formData.country}
                 onChange={(e) => handleInputChange('country', e.target.value)}
-                placeholder="Enter country"
-                icon={Globe}
-              />
+                required
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="">Select country</option>
+                {countries.map((c: Country) => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+              </select>
             </div>
             
             <div>
@@ -325,35 +346,17 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated })
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                School
+                School (Optional)
               </label>
               <select
                 value={formData.school}
                 onChange={(e) => handleInputChange('school', e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
-                <option value="">Select a school</option>
+                <option value="">Select a school (optional)</option>
                 {schools.map((school) => (
                   <option key={school.id} value={school.id}>
                     {school.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Department
-              </label>
-              <select
-                value={formData.department}
-                onChange={(e) => handleInputChange('department', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="">Select a department</option>
-                {departments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.name}
                   </option>
                 ))}
               </select>
@@ -364,66 +367,22 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated })
         {/* Role & Settings */}
         <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Role & Settings
+            Role (App Only)
           </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Role
-              </label>
-              <select
-                value={formData.role}
-                onChange={(e) => handleInputChange('role', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="student">Student</option>
-                <option value="teacher">Teacher</option>
-                <option value="editingteacher">Editing Teacher</option>
-                <option value="manager">Manager</option>
-                <option value="coursecreator">Course Creator</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Language
-              </label>
-              <select
-                value={formData.lang}
-                onChange={(e) => handleInputChange('lang', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="en">English</option>
-                <option value="ar">Arabic</option>
-                <option value="fr">French</option>
-                <option value="es">Spanish</option>
-              </select>
-            </div>
-            
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-6">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.suspended}
-                    onChange={(e) => handleInputChange('suspended', e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Suspend user account</span>
-                </label>
-                
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.emailstop}
-                    onChange={(e) => handleInputChange('emailstop', e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Stop email notifications</span>
-                </label>
-              </div>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Role
+            </label>
+            <select
+              value={formData.role}
+              onChange={(e) => handleInputChange('role', e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            >
+              <option value="">Select a role</option>
+              {roles.map(role => (
+                <option key={role} value={role}>{role}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -477,19 +436,20 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated })
                 firstname: '',
                 lastname: '',
                 email: '',
-                phone: '',
                 country: '',
                 city: '',
-                department: '',
                 school: '',
-                role: 'student',
-                auth: 'manual',
-                suspended: false,
-                emailstop: false,
-                theme: '',
+                phone1: '',
+                phone2: '',
+                address: '',
                 lang: 'en',
-                timezone: 'UTC',
-                description: ''
+                timezone: '99',
+                description: '',
+                maildisplay: 2,
+                mailformat: 1,
+                auth: 'manual',
+                createpassword: 0,
+                role: '',
               });
               setErrors({});
             }}

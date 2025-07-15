@@ -28,9 +28,12 @@ export const schoolsService = {
       const response = await api.get('', {
         params: {
           wsfunction: 'block_iomad_company_admin_get_companies',
-          criteria: [], // Always send criteria array (empty for all)
+          'criteria[0][key]': 'name',
+          'criteria[0][value]': '',
         },
       });
+
+      console.log('IOMAD getAllSchools API response:', response.data); // <-- Keep this for debugging
 
       // Handle different response formats from IOMAD
       let companies = [];
@@ -46,33 +49,14 @@ export const schoolsService = {
         id: company.id,
         name: company.name,
         shortname: company.shortname,
-        description: company.summary || company.description || '',
         city: company.city,
         country: company.country,
-        logo: company.companylogo || company.logo_url || company.logourl,
         address: company.address,
-        phone: company.phone1,
-        email: company.email,
-        website: company.url,
-        userCount: company.usercount || 0,
-        courseCount: company.coursecount || 0,
-        status: company.suspended ? 'inactive' : 'active',
         region: company.region,
         postcode: company.postcode,
-        theme: company.theme,
+        status: company.suspended ? 'inactive' : 'active',
         hostname: company.hostname,
         maxUsers: company.maxusers,
-        validTo: company.validto,
-        suspended: company.suspended,
-        ecommerce: company.ecommerce,
-        parentId: company.parentid,
-        customCss: company.customcss,
-        mainColor: company.maincolor,
-        headingColor: company.headingcolor,
-        linkColor: company.linkcolor,
-        custom1: company.custom1,
-        custom2: company.custom2,
-        custom3: company.custom3
       }));
     } catch (error) {
       console.error('Error fetching schools:', error);
@@ -105,33 +89,14 @@ export const schoolsService = {
           id: company.id,
           name: company.name,
           shortname: company.shortname,
-          description: company.summary || company.description || '',
           city: company.city,
           country: company.country,
-          logo: company.companylogo || company.logo_url || company.logourl,
           address: company.address,
-          phone: company.phone1,
-          email: company.email,
-          website: company.url,
-          userCount: company.usercount || 0,
-          courseCount: company.coursecount || 0,
-          status: company.suspended ? 'inactive' : 'active',
           region: company.region,
           postcode: company.postcode,
-          theme: company.theme,
+          status: company.suspended ? 'inactive' : 'active',
           hostname: company.hostname,
-          maxUsers: company.maxusers,
-          validTo: company.validto,
-          suspended: company.suspended,
-          ecommerce: company.ecommerce,
-          parentId: company.parentid,
-          customCss: company.customcss,
-          mainColor: company.maincolor,
-          headingColor: company.headingcolor,
-          linkColor: company.linkcolor,
-          custom1: company.custom1,
-          custom2: company.custom2,
-          custom3: company.custom3
+          maxUsers: company.maxusers
         };
       }
       return null;
@@ -149,33 +114,38 @@ export const schoolsService = {
       const params = new URLSearchParams();
       params.append('wsfunction', 'block_iomad_company_admin_create_companies');
       
+      // Only include supported fields
       const companyData = {
         name: schoolData.name,
         shortname: schoolData.shortname,
-        country: schoolData.country,
-        city: schoolData.city,
-        address: schoolData.address,
-        region: schoolData.region,
-        postcode: schoolData.postcode,
+        address: schoolData.address || '',
+        city: schoolData.city || '',
+        region: schoolData.region || '',
+        postcode: schoolData.postcode || '',
+        country: schoolData.country || '',
+        maildisplay: schoolData.maildisplay ?? 2,
+        mailformat: schoolData.mailformat ?? 1,
+        maildigest: schoolData.maildigest ?? 0,
+        autosubscribe: schoolData.autosubscribe ?? 1,
+        trackforums: schoolData.trackforums ?? 0,
+        htmleditor: schoolData.htmleditor ?? 1,
+        screenreader: schoolData.screenreader ?? 0,
+        timezone: schoolData.timezone || '99',
+        lang: schoolData.lang || 'en',
         suspended: schoolData.status === 'inactive' ? 1 : 0,
-        ecommerce: schoolData.ecommerce || 0,
-        parentid: schoolData.parentId || 0,
+        ecommerce: schoolData.ecommerce ?? 0,
+        parentid: schoolData.parentId ?? 0,
         customcss: schoolData.customCss || '',
-        theme: schoolData.theme || '',
+        validto: schoolData.validTo ? Math.floor(new Date(schoolData.validTo).getTime() / 1000) : '',
+        suspendafter: schoolData.suspendafter ?? 0,
+        companyterminated: schoolData.companyterminated ?? 0,
         hostname: schoolData.hostname || '',
-        maxusers: schoolData.maxUsers || 0,
-        maincolor: schoolData.mainColor || '',
-        headingcolor: schoolData.headingColor || '',
-        linkcolor: schoolData.linkColor || '',
-        custom1: schoolData.custom1 || '',
-        custom2: schoolData.custom2 || '',
-        custom3: schoolData.custom3 || ''
+        maxusers: schoolData.maxUsers ?? 0,
       };
 
       Object.entries(companyData).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          let keyName = key;
-          params.append(`companies[0][${keyName}]`, String(value));
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(`companies[0][${key}]`, String(value));
         }
       });
 
@@ -189,8 +159,14 @@ export const schoolsService = {
           id: newSchool.id,
           name: newSchool.name,
           shortname: newSchool.shortname,
-          description: '',
-          status: 'active'
+          status: 'active',
+          city: newSchool.city,
+          country: newSchool.country,
+          address: newSchool.address,
+          region: newSchool.region,
+          postcode: newSchool.postcode,
+          hostname: newSchool.hostname,
+          maxUsers: newSchool.maxusers
         };
       }
       throw new Error('Invalid response from IOMAD API');
@@ -206,7 +182,7 @@ export const schoolsService = {
   async updateSchool(schoolId: number, schoolData: Partial<School>, logoFile?: File, faviconFile?: File): Promise<School> {
     try {
       const params = new URLSearchParams();
-      params.append('wsfunction', 'block_iomad_company_admin_update_companies');
+      params.append('wsfunction', 'block_iomad_company_admin_edit_companies');
 
       if (logoFile) {
         const logoUploadResponse = await this.uploadFile(logoFile);
@@ -447,7 +423,7 @@ export const schoolsService = {
   async updateEmailTemplate(templateId: number, templateData: any): Promise<any> {
     try {
       const params = new URLSearchParams();
-      params.append('wsfunction', 'block_iomad_company_admin_update_email_templates');
+      params.append('wsfunction', 'block_iomad_company_admin_edit_email_templates');
       params.append('templates[0][id]', String(templateId));
       params.append('templates[0][subject]', templateData.subject);
       params.append('templates[0][body]', templateData.body);
