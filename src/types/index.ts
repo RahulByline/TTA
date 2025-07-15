@@ -46,6 +46,7 @@ export interface School {
   name: string;
   shortname?: string;
   logo?: string;
+  favicon?: string;
   description?: string;
   status?: string;
   country?: string;

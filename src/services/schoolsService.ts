@@ -28,6 +28,7 @@ export const schoolsService = {
       const response = await api.get('', {
         params: {
           wsfunction: 'block_iomad_company_admin_get_companies',
+          criteria: [], // Always send criteria array (empty for all)
         },
       });
 
@@ -76,6 +77,67 @@ export const schoolsService = {
     } catch (error) {
       console.error('Error fetching schools:', error);
       throw new Error('Failed to fetch schools from IOMAD');
+    }
+  },
+
+  /**
+   * Fetch a single school/company by ID from IOMAD
+   */
+  async getSchoolById(schoolId: number): Promise<School | null> {
+    try {
+      const response = await api.get('', {
+        params: {
+          wsfunction: 'block_iomad_company_admin_get_companies',
+          criteria: [{ key: 'id', value: schoolId }],
+        },
+      });
+      let companies = [];
+      if (response.data && Array.isArray(response.data)) {
+        companies = response.data;
+      } else if (response.data && response.data.companies && Array.isArray(response.data.companies)) {
+        companies = response.data.companies;
+      } else if (response.data && typeof response.data === 'object') {
+        companies = [response.data];
+      }
+      if (companies.length > 0) {
+        const company = companies[0];
+        return {
+          id: company.id,
+          name: company.name,
+          shortname: company.shortname,
+          description: company.summary || company.description || '',
+          city: company.city,
+          country: company.country,
+          logo: company.companylogo || company.logo_url || company.logourl,
+          address: company.address,
+          phone: company.phone1,
+          email: company.email,
+          website: company.url,
+          userCount: company.usercount || 0,
+          courseCount: company.coursecount || 0,
+          status: company.suspended ? 'inactive' : 'active',
+          region: company.region,
+          postcode: company.postcode,
+          theme: company.theme,
+          hostname: company.hostname,
+          maxUsers: company.maxusers,
+          validTo: company.validto,
+          suspended: company.suspended,
+          ecommerce: company.ecommerce,
+          parentId: company.parentid,
+          customCss: company.customcss,
+          mainColor: company.maincolor,
+          headingColor: company.headingcolor,
+          linkColor: company.linkcolor,
+          custom1: company.custom1,
+          custom2: company.custom2,
+          custom3: company.custom3
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching school by ID:', error);
+      return null;
     }
   },
 
@@ -141,14 +203,32 @@ export const schoolsService = {
   /**
    * Update an existing school/company
    */
-  async updateSchool(schoolId: number, schoolData: Partial<School>): Promise<School> {
+  async updateSchool(schoolId: number, schoolData: Partial<School>, logoFile?: File, faviconFile?: File): Promise<School> {
     try {
       const params = new URLSearchParams();
       params.append('wsfunction', 'block_iomad_company_admin_update_companies');
 
+      if (logoFile) {
+        const logoUploadResponse = await this.uploadFile(logoFile);
+        if (logoUploadResponse && logoUploadResponse.itemid) {
+          params.append('companies[0][logo_itemid]', String(logoUploadResponse.itemid));
+          // Moodle expects a filename for the logo field
+          params.append('companies[0][logo]', 'logo');
+        }
+      }
+
+      if (faviconFile) {
+        const faviconUploadResponse = await this.uploadFile(faviconFile);
+        if (faviconUploadResponse && faviconUploadResponse.itemid) {
+          params.append('companies[0][favicon_itemid]', String(faviconUploadResponse.itemid));
+          // Moodle expects a filename for the favicon field
+          params.append('companies[0][favicon]', 'favicon');
+        }
+      }
+
       const companyData: any = { id: schoolId, ...schoolData };
       
-      const apiData = {
+      const apiData: any = {
         id: companyData.id,
         name: companyData.name,
         shortname: companyData.shortname,
@@ -234,6 +314,35 @@ export const schoolsService = {
     } catch (error) {
       console.error('Error fetching departments:', error);
       return [];
+    }
+  },
+
+  /**
+   * Upload a logo or favicon file to Moodle.
+   * @param file The file to upload.
+   * @returns The file details from Moodle.
+   */
+  async uploadFile(file: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // We need to use a different endpoint for file uploads
+      const uploadUrl = `${IOMAD_BASE_URL.replace('/rest/server.php', '/upload.php')}?token=${IOMAD_TOKEN}`;
+      
+      const response = await axios.post(uploadUrl, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      if (response.data && response.data.length > 0) {
+        return response.data[0];
+      }
+      throw new Error('Invalid response from file upload API');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw new Error('Failed to upload file');
     }
   },
 
