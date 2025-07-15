@@ -441,7 +441,7 @@ export const TrainerDashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50">  <h1>nani</h1>
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col py-8 px-4">
         <div className="mb-8">

@@ -513,11 +513,13 @@ export const TeacherDashboard: React.FC = () => {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <LoadingSpinner size="lg" />
+        <h1>nani</h1>
       </div>
     );
   }
 
   return (
+    
     <div className="flex min-h-screen w-full bg-gray-50 dark:bg-neutral-900 transition-colors">
       {/* Sidebar (collapsible on mobile) */}
       <Sidebar />
