@@ -62,49 +62,50 @@ export const usersService = {
   /**
    * Create a new user
    */
-  async createUser(userData: any): Promise<User> {
+  async createUser(userData: any): Promise<any> {
     try {
-      const response = await api.post('', {
-        wsfunction: 'core_user_create_users',
-        users: [{
-          username: userData.username,
-          password: userData.password,
-          firstname: userData.firstname,
-          lastname: userData.lastname,
-          email: userData.email,
-          auth: userData.auth || 'manual',
-          suspended: userData.suspended ? 1 : 0,
-          country: userData.country || '',
-          city: userData.city || '',
-          timezone: userData.timezone || 'UTC',
-          lang: userData.lang || 'en',
-          description: userData.description || '',
-          phone1: userData.phone || '',
-          institution: userData.school || '',
-          department: userData.department || '',
-          emailstop: userData.emailstop ? 1 : 0
-        }]
-      });
-
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        const newUser = response.data[0];
-        
-        // If school is specified, assign user to school
-        if (userData.school) {
-          await this.assignUsersToSchool([newUser.id], userData.school);
+      const params = new URLSearchParams();
+      params.append('wsfunction', 'core_user_create_users');
+      // Only include supported fields
+      const user = {
+        createpassword: userData.createpassword ?? 0,
+        username: userData.username,
+        auth: userData.auth || 'manual',
+        password: userData.password,
+        firstname: userData.firstname,
+        lastname: userData.lastname,
+        email: userData.email,
+        maildisplay: userData.maildisplay ?? 2,
+        city: userData.city || '',
+        country: userData.country || '',
+        timezone: userData.timezone || '99',
+        description: userData.description || '',
+        firstnamephonetic: userData.firstnamephonetic || '',
+        lastnamephonetic: userData.lastnamephonetic || '',
+        middlename: userData.middlename || '',
+        alternatename: userData.alternatename || '',
+        interests: userData.interests || '',
+        idnumber: userData.idnumber || '',
+        institution: userData.institution || '',
+        department: userData.department || '',
+        phone1: userData.phone1 || '',
+        phone2: userData.phone2 || '',
+        address: userData.address || '',
+        lang: userData.lang || 'en',
+        calendartype: userData.calendartype || '',
+        theme: userData.theme || '',
+        mailformat: userData.mailformat ?? 1,
+        // customfields and preferences can be added if needed
+      };
+      Object.entries(user).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(`users[0][${key}]`, String(value));
         }
-        
-        return {
-          id: newUser.id.toString(),
-          username: userData.username,
-          firstname: userData.firstname,
-          lastname: userData.lastname,
-          email: userData.email,
-          role: userData.role,
-          status: userData.suspended ? 'suspended' : 'active'
-        };
-      }
-      throw new Error('Invalid response from API');
+      });
+      const response = await api.post('', params, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      return response.data;
     } catch (error) {
       console.error('Error creating user:', error);
       throw new Error('Failed to create user');
@@ -495,13 +496,34 @@ export const usersService = {
   },
 
   /**
-   * Assign users to school
+   * Assign users to school/company using Iomad API
    */
-  async assignUsersToSchool(userIds: string[], schoolId: string): Promise<boolean> {
+  async assignUsersToSchool(users: Array<{
+    userid: number;
+    companyid: number;
+    departmentid?: number;
+    managertype?: number;
+    educator?: number;
+  }>): Promise<boolean> {
     try {
-      // In a real implementation, this would call an API endpoint
-      // For now, we'll simulate success
-      return true;
+      const params = new URLSearchParams();
+      params.append('wsfunction', 'block_iomad_company_admin_assign_users');
+      // Build the users array in the required format
+      users.forEach((user, idx) => {
+        params.append(`users[${idx}][userid]`, String(user.userid));
+        params.append(`users[${idx}][companyid]`, String(user.companyid));
+        params.append(`users[${idx}][departmentid]`, String(user.departmentid ?? 0));
+        params.append(`users[${idx}][managertype]`, String(user.managertype ?? 0));
+        params.append(`users[${idx}][educator]`, String(user.educator ?? 0));
+      });
+      const response = await api.post('', params, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      // If no exception, consider it success
+      if (response.data && !response.data.exception) {
+        return true;
+      }
+      throw new Error(response.data?.message || 'Failed to assign users to school');
     } catch (error) {
       console.error('Error assigning users to school:', error);
       throw new Error('Failed to assign users to school');
@@ -658,5 +680,15 @@ export const usersService = {
     } else {
       return 'student';
     }
+  },
+
+  /**
+   * Assign a role to a user in a company context (stub for now)
+   */
+  async assignRoleToUser({ userid, role, companyid }: { userid: number, role: string, companyid: number }): Promise<boolean> {
+    // TODO: Implement this using the correct Iomad/Moodle API for role assignment in company context
+    // This may require enrol_manual_enrol_users for courses, or a custom API for company roles
+    console.log('Assigning role', role, 'to user', userid, 'in company', companyid);
+    return true;
   }
 };

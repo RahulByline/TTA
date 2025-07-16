@@ -11,6 +11,7 @@ import { OptionalProfiles } from '../pages/schools/OptionalProfiles';
 import { RestrictCapabilities } from '../pages/schools/RestrictCapabilities';
 import { ImportSchools } from '../pages/schools/ImportSchools';
 import { EmailTemplates } from '../pages/schools/EmailTemplates';
+import SchoolListPage from '../pages/schools/SchoolListPage';
 
 export const SchoolManagementRoutes: React.FC = () => {
   return (
@@ -27,6 +28,7 @@ export const SchoolManagementRoutes: React.FC = () => {
         <Route path="capabilities" element={<RestrictCapabilities />} />
         <Route path="import" element={<ImportSchools />} />
         <Route path="templates" element={<EmailTemplates />} />
+        <Route path="list" element={<SchoolListPage />} />
         <Route path="*" element={<Navigate to="/school" replace />} />
       </Routes>
     </DashboardLayout>
